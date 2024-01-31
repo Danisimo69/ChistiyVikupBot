@@ -692,7 +692,7 @@ async def main():
 
 
 if __name__ == "__main__":
-    with open(langs_path, "r", encoding="utf-8") as file:
+    with open(f"{os.getcwd()}\\{langs_path}", "r", encoding="utf-8") as file:
         lang_dict = json.loads(file.read())
 
     # parser = argparse.ArgumentParser(description="Telegram Bot")
