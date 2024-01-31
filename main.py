@@ -396,20 +396,20 @@ async def payment(callback: types.CallbackQuery, state: FSMContext):
         # print(image)
         file_path = (await bot.get_file(image)).file_path
         # print(file_path)
-        await bot.download_file(file_path, destination=f"{os.getcwd()}\\{images_path}\\{image}.jpg")
+        await bot.download_file(file_path, destination=f"{os.getcwd()}/{images_path}/{image}.jpg")
         await asyncio.to_thread(add_watermark,
                                 images_path, f"{image}.jpg")
 
     await callback.message.delete()
 
-    res = await callback.message.answer_photo(photo=FSInputFile(f"{os.getcwd()}\\{images_path}\\new_{image}.png"), caption=post.text)
+    res = await callback.message.answer_photo(photo=FSInputFile(f"{os.getcwd()}/{images_path}/new_{image}.png"), caption=post.text)
     # print(len(res))
     images_text = f"{res.photo[-1].file_id}|"
 
     await res.delete()
 
-    await asyncio.to_thread(rmtree, f"{os.getcwd()}\\{images_path}")
-    await asyncio.to_thread(os.mkdir, f"{os.getcwd()}\\{images_path}")
+    await asyncio.to_thread(rmtree, f"{os.getcwd()}/{images_path}")
+    await asyncio.to_thread(os.mkdir, f"{os.getcwd()}/{images_path}")
 
     await update_post_photo_final(data['post_id'], images_text)
 
@@ -507,10 +507,10 @@ async def message_distributor(message: types.Message, state: FSMContext):
                 # print(image)
                 file_path = (await bot.get_file(image)).file_path
                 # print(file_path)
-                await bot.download_file(file_path, destination=f"{os.getcwd()}\\{images_path}\\{image}.jpg")
+                await bot.download_file(file_path, destination=f"{os.getcwd()}/{images_path}/{image}.jpg")
                 await asyncio.to_thread(add_watermark,
                                         images_path, f"{image}.jpg")
-                m_g.append(InputMediaPhoto(media=FSInputFile(f"{os.getcwd()}\\{images_path}\\new_{image}.png")))
+                m_g.append(InputMediaPhoto(media=FSInputFile(f"{os.getcwd()}/{images_path}/new_{image}.png")))
 
             res = await message.answer_media_group(media=m_g)
             # print(len(res))
@@ -524,8 +524,8 @@ async def message_distributor(message: types.Message, state: FSMContext):
             for msg in res:
                 await msg.delete()
 
-            await asyncio.to_thread(rmtree, f"{os.getcwd()}\\{images_path}")
-            await asyncio.to_thread(os.mkdir, f"{os.getcwd()}\\{images_path}")
+            await asyncio.to_thread(rmtree, f"{os.getcwd()}/{images_path}")
+            await asyncio.to_thread(os.mkdir, f"{os.getcwd()}/{images_path}")
 
             await update_post_photo_final(data['post_id'], images_text)
 
@@ -692,7 +692,7 @@ async def main():
 
 
 if __name__ == "__main__":
-    with open(f"{os.getcwd()}\\{langs_path}", "r", encoding="utf-8") as file:
+    with open(f"{os.getcwd()}/{langs_path}", "r", encoding="utf-8") as file:
         lang_dict = json.loads(file.read())
 
     # parser = argparse.ArgumentParser(description="Telegram Bot")
