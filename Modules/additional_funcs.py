@@ -15,7 +15,7 @@ def add_watermark(path, name):
 
     #Positioning Text
     width, height = img.size
-    textwidth, textheight = d.textsize(text, font)
+
     x=width/2-60
     y=height/2-50
 
