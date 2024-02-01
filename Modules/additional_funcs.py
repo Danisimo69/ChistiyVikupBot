@@ -3,7 +3,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 
 def add_watermark(path, name):
-    img = Image.open(f"{path}\\{name}").convert("RGBA")
+    img = Image.open(f"{path}/{name}").convert("RGBA")
     txt = Image.new('RGBA', img.size, (255,255,255,0))
 
     #Creating Text
