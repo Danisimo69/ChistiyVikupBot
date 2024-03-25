@@ -203,6 +203,14 @@ async def update_post_upload_status(id: str):
             else:
                 return False
 
+async def update_post_upload_status_(id: str, status: bool):
+    async with async_session() as session:
+        async with session.begin():
+
+            await session.execute(update(Post).where(Post.id == id).values(upload_status=status))
+            await session.commit()
+
+
 async def update_post_information_upload_status(id: str):
     async with async_session() as session:
         async with session.begin():

@@ -44,7 +44,13 @@ async def is_subscribed(USER_ID):
     else:
         return False
 
-
+def split_list(lst, n):
+    divided = []
+    # Используем цикл для обхода элементов с шагом n
+    for i in range(0, len(lst), n):
+        # Добавляем подсписок в divided
+        divided.append(lst[i:i + n])
+    return divided
 
 @dp.message(Command("start"))
 async def start_message(
@@ -131,20 +137,38 @@ async def start_message(
                 await message.answer(f"Дополнительные фото машины <b>{car_info.car_name}</b>:")
                 images = await get_post_photos(id)
 
-                group = []
-                for image in images:
-                    if image == "" or image == images[0]:
-                        continue
-                    else:
-                        group.append(image.split(":"))
-                group = sorted(group, key=lambda x: float(x[1]))
-
-                media_group = []
-                for image in group:
-                    media_group.append(InputMediaPhoto(media=image[0]))
+                # group = []
+                # for image in images:
+                #     if image == "" or image == images[0]:
+                #         continue
+                #     else:
+                #         group.append(image.split(":"))
+                # group = sorted(group, key=lambda x: float(x[1]))
+                #
+                # media_group = []
+                # for image in group:
+                #     media_group.append(InputMediaPhoto(media=image[0]))
 
                 try:
-                    await message.answer_media_group(media_group)
+                    group = []
+                    for image in images:
+                        if image == "" or image == images[0]:
+                            continue
+                        else:
+                            print(image)
+                            group.append(image.split(":"))
+
+                    group = sorted(group, key=lambda x: float(x[1]))
+
+                    group = split_list(group, 10)
+                    # print(group)
+
+                    for i in group:
+                        media_group = []
+                        for image in i:
+                            media_group.append(InputMediaPhoto(media=image[0]))
+
+                        await message.answer_media_group(media_group)
                 except:
                     await message.answer("Отсутствуют")
 
@@ -315,7 +339,7 @@ async def create_post(callback: types.CallbackQuery, state: FSMContext):
 
     await callback.message.edit_text("Вы успешно отменили постинг", reply_markup=None)
 
-@dp.callback_query(F.data == "send_post_now")
+@dp.callback_query(F.data.startswith("send_post_now"))
 async def create_post(callback: types.CallbackQuery, state: FSMContext):
     await bot.answer_callback_query(callback.id)
     data = await state.get_data()
@@ -325,11 +349,12 @@ async def create_post(callback: types.CallbackQuery, state: FSMContext):
                            post_date=datetime.datetime.now(),
                            posted_status=True)
 
-    post = await get_post(data['post_id'])
+    try:
+        post = await get_post(callback.data.replace("send_post_now_",""))
+    except:
+        post = await get_post(data['post_id'])
 
     await bot.send_photo(chat_id=CHANNEL_ID, photo=post.images.split("|")[0], caption=post.text, reply_markup=InlineButtons.default_post_kb(data['post_id']))
-
-
 
     await callback.message.answer("Пост был успешно опубликован")
 
@@ -425,7 +450,116 @@ async def payment(callback: types.CallbackQuery, state: FSMContext):
 
     await callback.message.answer("Укажите дату и время отправки данного поста в канал в формате "
                          "<b>24.04.2024 13:03</b>, либо нажмите <i>Сейчас</i> для моментальной отправки",
-                         reply_markup=InlineAdminButtons.confirm_post_kb())
+                         reply_markup=InlineAdminButtons.confirm_post_kb(data['post_id']))
+
+    await state.set_state(AdminStates.create_post_confirm.state)
+
+@dp.callback_query(F.data == "save_photo")
+async def save_photo(callback: types.CallbackQuery, state: FSMContext):
+
+    data = await state.get_data()
+
+
+    await callback.message.edit_text("Подождите немного, идет подготовка фотографий с вотермаркой")
+
+    m_g = {}
+    images = await get_not_ready_post_photos(data['post_id'])
+
+    for i in range(len(images)//10+1 if len(images)%10 != 0 else len(images)//10):
+        m_g[f"{i}"] = []
+
+    k = 0
+    for index, img in enumerate(images):
+        if img == "":
+            continue
+
+        if index%10==0 and index != 0:
+            k+=1
+
+        image = img.split(":")[0]
+        # print(image)
+        file_path = (await bot.get_file(image)).file_path
+        # print(file_path)
+        await bot.download_file(file_path, destination=f"{os.getcwd()}/{images_path}/{image}.jpg")
+        await asyncio.to_thread(add_watermark,
+                                images_path, f"{image}.jpg")
+        m_g[f"{k}"].append(InputMediaPhoto(media=FSInputFile(f"{os.getcwd()}/{images_path}/new_{image}.png")))
+
+    msgs = []
+    for key, value in m_g.items():
+        msgs.append(await callback.message.answer_media_group(media=value))
+    # print(len(res))
+
+    images_text = ""
+    counter = 0
+    for res in msgs:
+
+        for index, msg in enumerate(res):
+            if counter == 0:
+                images_text += str(msg.photo[-1].file_id)+ "|"
+            else:
+                images_text += str(msg.photo[-1].file_id) + ":" + images[counter].split(":")[1] + "|"
+            counter+=1
+
+        for msg in res:
+            await msg.delete()
+
+    await asyncio.to_thread(rmtree, f"{os.getcwd()}/{images_path}")
+    await asyncio.to_thread(os.mkdir, f"{os.getcwd()}/{images_path}")
+
+    await update_post_photo_final(data['post_id'], images_text)
+
+    post = await get_post(data['post_id'])
+    images = await get_post_photos(data['post_id'])
+
+    await callback.message.answer_photo(photo=post.images.split("|")[0], caption=post.text)
+    await asyncio.sleep(0.2)
+    await callback.message.answer("<b>Информация (доступна по кнопке):</b>")
+
+    try:
+        media = post.information_files.split("|")
+        for i in media:
+            if i == "":
+                media.remove(i)
+                break
+
+        media = [i.split(":") for i in media]
+        media = sorted(media, key=lambda x: float(x[1]))
+
+        media_group = []
+        for i in media:
+            media_group.append(InputMediaDocument(media=i[0], caption=data["post_info"]))
+
+        await callback.message.answer_media_group(media=media_group)
+    except:
+        await callback.message.answer(data["post_info"])
+
+    await asyncio.sleep(0.2)
+    await callback.message.answer("<b>Доп. фотографии (доступны по кнопке):</b>")
+
+    group = []
+    for image in images:
+        if image == "" or image == images[0]:
+            continue
+        else:
+            print(image)
+            group.append(image.split(":"))
+
+    group = sorted(group, key=lambda x: float(x[1]))
+
+    group = split_list(group, 10)
+    # print(group)
+
+    for i in group:
+        media_group = []
+        for image in i:
+            media_group.append(InputMediaPhoto(media=image[0]))
+
+        await callback.message.answer_media_group(media_group)
+
+    await callback.message.answer("Укажите дату и время отправки данного поста в канал в формате "
+                         "<b>24.04.2024 13:03</b>, либо нажмите <i>Сейчас</i> для моментальной отправки",
+                         reply_markup=InlineAdminButtons.confirm_post_kb(data['post_id']))
 
     await state.set_state(AdminStates.create_post_confirm.state)
 
@@ -485,98 +619,20 @@ async def message_distributor(message: types.Message, state: FSMContext):
     elif state_ == AdminStates.create_post_more_photos.state:
 
         photo_id = message.photo[-1].file_id
+
         await update_post_photo(data['post_id'],photo_id+":"+str(datetime.datetime.now().timestamp()))
 
         await asyncio.sleep(random.randint(10,70)/100)
         status = await update_post_upload_status(data['post_id'])
 
-        await asyncio.sleep(0.7)
+        await asyncio.sleep(1)
 
         if status:
 
-            await message.answer("Подождите немного, идет подготовка фотографий с вотермаркой")
-
-            m_g = []
-            images = await get_not_ready_post_photos(data['post_id'])
-            # print(images)
-            for index, img in enumerate(images):
-                if img == "":
-                    continue
-
-                image = img.split(":")[0]
-                # print(image)
-                file_path = (await bot.get_file(image)).file_path
-                # print(file_path)
-                await bot.download_file(file_path, destination=f"{os.getcwd()}/{images_path}/{image}.jpg")
-                await asyncio.to_thread(add_watermark,
-                                        images_path, f"{image}.jpg")
-                m_g.append(InputMediaPhoto(media=FSInputFile(f"{os.getcwd()}/{images_path}/new_{image}.png")))
-
-            res = await message.answer_media_group(media=m_g)
-            # print(len(res))
-            images_text = ""
-            for index, msg in enumerate(res):
-                if index != 0:
-                    images_text+=str(msg.photo[-1].file_id)+":"+images[index].split(":")[1]+"|"
-                else:
-                    images_text += str(msg.photo[-1].file_id) + "|"
-
-            for msg in res:
-                await msg.delete()
-
-            await asyncio.to_thread(rmtree, f"{os.getcwd()}/{images_path}")
-            await asyncio.to_thread(os.mkdir, f"{os.getcwd()}/{images_path}")
-
-            await update_post_photo_final(data['post_id'], images_text)
-
-            post = await get_post(data['post_id'])
-            images = await get_post_photos(data['post_id'])
-
-
-            await message.answer_photo(photo=post.images.split("|")[0], caption=post.text)
+            await message.answer("Фотографии загружены, если вы хотите добавить еще, просто пришлите их, иначе, нажмити <b>Далее</b>",
+                                 reply_markup=InlineAdminButtons.add_photo_kb())
+            await update_post_upload_status_(data['post_id'], False)
             await asyncio.sleep(0.2)
-            await message.answer("<b>Информация (доступна по кнопке):</b>")
-
-            try:
-                media = post.information_files.split("|")
-                for i in media:
-                    if i == "":
-                        media.remove(i)
-                        break
-
-                media = [i.split(":") for i in media]
-                media = sorted(media, key=lambda x: float(x[1]))
-
-                media_group = []
-                for i in media:
-                    media_group.append(InputMediaDocument(media=i[0], caption=data["post_info"]))
-
-                await message.answer_media_group(media=media_group)
-            except:
-                await message.answer(data["post_info"])
-
-            await asyncio.sleep(0.2)
-            await message.answer("<b>Доп. фотографии (доступны по кнопке):</b>")
-
-            group = []
-            for image in images:
-                if image == "" or image == images[0]:
-                    continue
-                else:
-                    group.append(image.split(":"))
-            group = sorted(group, key=lambda x: float(x[1]))
-
-            media_group = []
-            for image in group:
-                media_group.append(InputMediaPhoto(media=image[0]))
-
-
-            await message.answer_media_group(media_group)
-
-            await message.answer("Укажите дату и время отправки данного поста в канал в формате "
-                                 "<b>24.04.2024 13:03</b>, либо нажмите <i>Сейчас</i> для моментальной отправки", reply_markup=InlineAdminButtons.confirm_post_kb())
-
-            await state.set_state(AdminStates.create_post_confirm.state)
 
     elif state_ == AdminStates.create_post_confirm.state:
 

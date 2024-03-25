@@ -10,6 +10,8 @@ class InlineButtons(InlineConstructor):
         btns = [{"text": text, "url": url}]
         return InlineButtons._create_kb(btns, schema)
 
+
+
     @staticmethod
     def default_post_kb(id) -> aiogram.types.InlineKeyboardMarkup:
         schema = [2,2]

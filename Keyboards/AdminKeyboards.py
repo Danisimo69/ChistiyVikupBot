@@ -14,6 +14,13 @@ class InlineAdminButtons(InlineConstructor):
         return InlineAdminButtons._create_kb(btns, schema)
 
     @staticmethod
+    def add_photo_kb() -> aiogram.types.InlineKeyboardMarkup:
+        schema = [1,1]
+        btns = [{"text": "Далее", "callback_data": "save_photo"},
+                {"text": "Выйти", "callback_data": "menu"}]
+        return InlineAdminButtons._create_kb(btns, schema)
+
+    @staticmethod
     def back_kb(skip_mode: bool = False) -> aiogram.types.InlineKeyboardMarkup:
 
         if skip_mode:
@@ -78,9 +85,9 @@ class InlineAdminButtons(InlineConstructor):
         return InlineAdminButtons._create_kb(btns, schema)
 
     @staticmethod
-    def confirm_post_kb() -> aiogram.types.InlineKeyboardMarkup:
+    def confirm_post_kb(post_id) -> aiogram.types.InlineKeyboardMarkup:
         schema = [1, 1]
-        btns = [{"text": "Сейчас", "callback_data": "send_post_now"},
+        btns = [{"text": "Сейчас", "callback_data": f"send_post_now_{post_id}"},
                 {"text": "Отменить", "callback_data": "menu"}]
         return InlineAdminButtons._create_kb(btns, schema)
 
